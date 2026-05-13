@@ -40,11 +40,7 @@ accelerate config
 
 ## Pretrained Checkpoints
 
-Pretrained checkpoints will be released here:
-
-```text
-https://huggingface.co/your-org/gat/resolve/main/gat_b2_256.pt
-```
+Pretrained checkpoints will be released.
 
 ## Dataset
 
