@@ -38,9 +38,16 @@ Configure Accelerate before multi-GPU training.
 accelerate config
 ```
 
+
 ## Pretrained Checkpoints
 
-Pretrained checkpoints will be released.
+We release the pretrained **XL-2** checkpoint used in our experiments.
+
+| Model | Checkpoint |
+| --- | --- |
+| XL-2 | [Google Drive](https://drive.google.com/open?id=1eMDfFlhFB_doTIJuLLZ9qpS1NknD0Ss2&usp=drive_copy) |
+
+
 
 ## Dataset
 
