@@ -1,7 +1,7 @@
 import torch
 import numpy as np
 
-from losses.diffaug import DiffAugment as aug
+from diffusers.gat_utils.losses.diffaug import DiffAugment as aug
 from torchvision.transforms import Normalize
 
 import math

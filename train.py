@@ -4,9 +4,13 @@ from copy import deepcopy
 import logging
 import os
 import shutil
+import sys
 from pathlib import Path
 from collections import OrderedDict
 import json
+
+ROOT = Path(__file__).resolve().parent
+sys.path.insert(0, str(ROOT / "src"))
 
 import torch
 import torch.utils.checkpoint
@@ -19,13 +23,14 @@ from accelerate.logging import get_logger
 from accelerate.utils import ProjectConfiguration, set_seed
 from accelerate.utils import DistributedDataParallelKwargs
 
-from models.generator import GAT_models
-from models.discriminator import GATD_models
-from losses import RpGANLoss, RpGANPTLoss
-from utils import load_encoders
+from diffusers.models.gat.generator import GAT_models
+from diffusers.models.gat.discriminator import GATD_models
+from diffusers.gat_utils.losses import RpGANLoss, RpGANPTLoss
+from diffusers.gat_utils.encoders import load_encoders
+from diffusers.gat_utils.config import normalize_model_name
+from diffusers._hf import get_hf_attr
 
-from dataset import CustomDataset, CustomDataset_DiT
-from diffusers.models import AutoencoderKL
+AutoencoderKL = get_hf_attr("diffusers.models.autoencoder_kl.AutoencoderKL")
 
 import wandb
 import math
@@ -35,9 +40,6 @@ from datetime import timedelta
 from accelerate.utils import InitProcessGroupKwargs
 
 logger = get_logger(__name__)
-
-def normalize_model_name(name):
-    return name.replace("SiT-", "GAT-", 1) if name.startswith("SiT-") else name
 
 
 def array2grid(x):

@@ -18,15 +18,31 @@ optimization as models grow.
 The code supports `GAT-S`, `GAT-B`, `GAT-L`, and `GAT-XL` variants with patch
 sizes `/2`, `/4`, and `/8`.
 
+## Architecture
+
+Model implementations live under [`src/diffusers`](src/diffusers) and extend the installed Hugging Face `diffusers` package:
+
+- **GAT Generator / Discriminator**: native `GATGenerator` and `GATDiscriminator` (`ModelMixin` + `ConfigMixin`)
+- **GATPipeline**: one-step class-conditional latent sampling with VAE decode
+
+```python
+from diffusers import GATPipeline, load_gat_pipeline
+
+pipe = load_gat_pipeline("/path/to/checkpoints/latest.pt", resolution=256).to("cuda")
+image = pipe(class_labels=207, truncation_psi=0.3).images[0]
+```
+
+GAT model classes are under `diffusers.models.gat.*`. Training losses and encoder helpers are under `diffusers.gat_utils.*`.
+
 ## Installation
 
-Create an environment and install the requirements.
+Create an environment and install the package in editable mode so the local `src/diffusers` extensions are on the import path.
 
 ```bash
-cd GAT_codes
 conda create -n gat python=3.10 -y
 conda activate gat
 pip install -r requirements.txt
+pip install -e .
 ```
 
 Install a PyTorch build that matches your CUDA version if the default `torch`

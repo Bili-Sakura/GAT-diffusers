@@ -1,48 +1,25 @@
 import argparse
 import math
 import os
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent
+sys.path.insert(0, str(ROOT / "src"))
 
 import numpy as np
 import torch
 import torch.distributed as dist
-from diffusers.models import AutoencoderKL
 from PIL import Image
 from tqdm import tqdm
 
-from models.generator import GAT_models
-from utils import load_legacy_checkpoints
+from diffusers.gat_utils.config import normalize_model_name
+from diffusers.gat_utils.loading import apply_checkpoint_args, get_checkpoint_state
+from diffusers.gat_utils.encoders import load_legacy_checkpoints
+from diffusers.models.gat.generator import GAT_models
+from diffusers._hf import get_hf_attr
 
-
-def normalize_model_name(name):
-    return name.replace("SiT-", "GAT-", 1) if name.startswith("SiT-") else name
-
-
-def get_checkpoint_state(checkpoint, weight_key):
-    for key in (weight_key, "ema", "generator", "model"):
-        state_dict = checkpoint.get(key) if isinstance(checkpoint, dict) else None
-        if isinstance(state_dict, dict):
-            return state_dict, key
-    raise RuntimeError("Checkpoint does not contain model weights.")
-
-
-def apply_checkpoint_args(args, checkpoint):
-    ckpt_args = checkpoint.get("args") if isinstance(checkpoint, dict) else None
-    if ckpt_args is None:
-        return args
-    for name in ("model", "resolution", "num_classes", "fused_attn", "qk_norm"):
-        if hasattr(ckpt_args, name):
-            setattr(args, name, getattr(ckpt_args, name))
-    args.model = normalize_model_name(args.model)
-    return args
-
-
-def create_npz_from_sample_folder(sample_dir, num):
-    samples = []
-    for i in tqdm(range(num), desc="Building npz"):
-        samples.append(np.asarray(Image.open(f"{sample_dir}/{i:06d}.png")).astype(np.uint8))
-    npz_path = f"{sample_dir}.npz"
-    np.savez(npz_path, arr_0=np.stack(samples))
-    print(f"Saved {npz_path}.")
+AutoencoderKL = get_hf_attr("diffusers.models.autoencoder_kl.AutoencoderKL")
 
 
 def main(args):
@@ -106,8 +83,8 @@ def main(args):
         x = torch.randn(per_rank_batch, model.in_channels, latent_size, latent_size, device=device)
         y = torch.randint(0, args.num_classes, (per_rank_batch,), device=device)
         z = torch.randn(per_rank_batch, model.latent_size, device=device)
-        latents = model(x=x, y=y, z=z, truncation_psi=args.truncation_psi)
-        images = vae.decode((latents - latents_bias) / latents_scale).sample
+        output = model(x=x, y=y, z=z, truncation_psi=args.truncation_psi, return_dict=True).sample
+        images = vae.decode((output - latents_bias) / latents_scale).sample
         images = (images + 1) / 2
         images = torch.clamp(255 * images, 0, 255).permute(0, 2, 3, 1).to("cpu", torch.uint8).numpy()
 
@@ -122,6 +99,15 @@ def main(args):
         create_npz_from_sample_folder(sample_folder, args.num_fid_samples)
     dist.barrier()
     dist.destroy_process_group()
+
+
+def create_npz_from_sample_folder(sample_dir, num):
+    samples = []
+    for i in tqdm(range(num), desc="Building npz"):
+        samples.append(np.asarray(Image.open(f"{sample_dir}/{i:06d}.png")).astype(np.uint8))
+    npz_path = f"{sample_dir}.npz"
+    np.savez(npz_path, arr_0=np.stack(samples))
+    print(f"Saved {npz_path}.")
 
 
 if __name__ == "__main__":
