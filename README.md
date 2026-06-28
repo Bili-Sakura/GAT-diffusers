@@ -18,15 +18,50 @@ optimization as models grow.
 The code supports `GAT-S`, `GAT-B`, `GAT-L`, and `GAT-XL` variants with patch
 sizes `/2`, `/4`, and `/8`.
 
-## Installation
+## Architecture
 
-Create an environment and install the requirements.
+Model implementations live under [`src/diffusers`](src/diffusers) and extend the installed Hugging Face `diffusers` package:
+
+- **GAT Generator / Discriminator**: native `GATGenerator` and `GATDiscriminator` (`ModelMixin` + `ConfigMixin`)
+- **GATPipeline**: one-step class-conditional latent sampling with VAE decode
+
+```python
+from diffusers import GATGenerator, GATPipeline
+
+# Convert legacy checkpoint
+GATGenerator.convert_checkpoint("/path/to/latest.pt", "./gat-xl2-diffusers", model_name="GAT-XL/2")
+
+# Load and sample
+pipe = GATPipeline.from_pretrained("./gat-xl2-diffusers").to("cuda")
+image = pipe(class_labels=207, truncation_psi=0.3).images[0]
+```
+
+Convert a legacy training checkpoint:
 
 ```bash
-cd GAT_codes
+python scripts/convert_gat_checkpoint.py \
+  --ckpt /path/to/checkpoints/latest.pt \
+  --output-dir ./gat-xl2-diffusers \
+  --model GAT-XL/2 \
+  --resolution 256
+```
+
+GAT modules live under `src/diffusers/` with one file per leaf package:
+
+| Path | Contents |
+| --- | --- |
+| `models/gat/gat.py` | Generator, discriminator, layers, config, conversion, losses |
+| `pipelines/gat/gat.py` | `GATPipeline` with `from_pretrained` |
+
+## Installation
+
+Create an environment and install the package in editable mode so the local `src/diffusers` extensions are on the import path.
+
+```bash
 conda create -n gat python=3.10 -y
 conda activate gat
 pip install -r requirements.txt
+pip install -e .
 ```
 
 Install a PyTorch build that matches your CUDA version if the default `torch`

@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gat-diffusers"
+version = "0.1.0"
+description = "Generative Adversarial Transformers with native diffusers integration"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "diffusers>=0.37.0",
+  "torch",
+  "torchvision",
+  "numpy",
+  "scipy",
+  "pillow",
+  "transformers",
+  "timm",
+  "tqdm",
+  "accelerate",
+  "wandb",
+  "requests",
+  "einops",
+]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src", "."]

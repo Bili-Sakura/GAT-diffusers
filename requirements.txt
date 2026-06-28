@@ -3,7 +3,7 @@ torchvision
 numpy
 scipy
 pillow
-diffusers
+diffusers>=0.37.0
 transformers
 timm
 tqdm
