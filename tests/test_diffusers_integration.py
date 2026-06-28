@@ -8,8 +8,8 @@ import pytest
 
 torch = pytest.importorskip("torch")
 
-from diffusers import GATDiscriminator, GATGenerator, GATPipeline
-from diffusers.gat_utils.gat import convert_gat_checkpoint, save_gat_pipeline_pretrained
+from diffusers import GATDiscriminator, GATGenerator, GATPipeline, convert_gat_checkpoint
+from diffusers.pipelines.gat.gat import save_gat_pipeline_pretrained
 
 
 def test_gat_generator_forward_shape():

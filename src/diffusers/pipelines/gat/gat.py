@@ -260,3 +260,35 @@ class GATPipeline(DiffusionPipeline):
         if not return_dict:
             return (result,)
         return ImagePipelineOutput(images=result)
+
+
+def save_gat_pipeline_pretrained(
+    output_dir: str | Path,
+    generator: GATGenerator,
+    *,
+    truncation_psi: float = 0.3,
+    vae_hub_id: str = "stabilityai/sd-vae-ft-ema",
+    id2label: Optional[Dict[Union[int, str], str]] = None,
+    discriminator=None,
+):
+    from ..._hf import get_hf_diffusers
+    from ...models.gat.gat import GATDiscriminator
+
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    generator.save_pretrained(output_dir / "generator")
+    if discriminator is not None:
+        discriminator.save_pretrained(output_dir / "discriminator")
+
+    model_index = {
+        "_class_name": "GATPipeline",
+        "_diffusers_version": get_hf_diffusers().__version__,
+        "generator": ["diffusers", "GATGenerator"],
+        "vae": ["diffusers", "AutoencoderKL"],
+        "truncation_psi": truncation_psi,
+        "vae_hub_id": vae_hub_id,
+    }
+    if id2label:
+        model_index["id2label"] = {str(k): v for k, v in id2label.items()}
+    (output_dir / "model_index.json").write_text(json.dumps(model_index, indent=2), encoding="utf-8")
+    return output_dir

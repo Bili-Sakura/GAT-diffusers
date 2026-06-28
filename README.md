@@ -26,9 +26,12 @@ Model implementations live under [`src/diffusers`](src/diffusers) and extend the
 - **GATPipeline**: one-step class-conditional latent sampling with VAE decode
 
 ```python
-from diffusers import GATPipeline
+from diffusers import GATGenerator, GATPipeline
 
-# From a converted Diffusers folder
+# Convert legacy checkpoint
+GATGenerator.convert_checkpoint("/path/to/latest.pt", "./gat-xl2-diffusers", model_name="GAT-XL/2")
+
+# Load and sample
 pipe = GATPipeline.from_pretrained("./gat-xl2-diffusers").to("cuda")
 image = pipe(class_labels=207, truncation_psi=0.3).images[0]
 ```
@@ -47,9 +50,8 @@ GAT modules live under `src/diffusers/` with one file per leaf package:
 
 | Path | Contents |
 | --- | --- |
-| `models/gat/gat.py` | Generator, discriminator, layers |
+| `models/gat/gat.py` | Generator, discriminator, layers, config, conversion, losses |
 | `pipelines/gat/gat.py` | `GATPipeline` with `from_pretrained` |
-| `gat_utils/gat.py` | Config, conversion, loading, losses |
 
 ## Installation
 

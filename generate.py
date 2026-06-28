@@ -14,7 +14,7 @@ from PIL import Image
 from tqdm import tqdm
 
 from diffusers import GATPipeline, GAT_models, normalize_model_name
-from diffusers.gat_utils.gat import apply_checkpoint_args, get_checkpoint_state, load_legacy_checkpoints
+from diffusers.models.gat.gat import apply_checkpoint_args, get_checkpoint_state, load_legacy_checkpoints
 from diffusers._hf import get_hf_attr
 
 AutoencoderKL = get_hf_attr("diffusers.models.autoencoder_kl.AutoencoderKL")

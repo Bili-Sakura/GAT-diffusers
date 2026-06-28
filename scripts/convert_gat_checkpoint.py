@@ -10,7 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from diffusers.gat_utils.gat import convert_gat_checkpoint, GAT_MODEL_PRESETS
+from diffusers import GATGenerator, GAT_MODEL_PRESETS
 
 
 def parse_args():
@@ -31,7 +31,7 @@ def parse_args():
 def main():
     args = parse_args()
     vae_hub_id = f"stabilityai/sd-vae-ft-{args.vae}"
-    out = convert_gat_checkpoint(
+    out = GATGenerator.convert_checkpoint(
         args.ckpt,
         args.output_dir,
         model_name=args.model,

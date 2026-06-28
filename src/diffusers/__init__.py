@@ -23,7 +23,6 @@ __all__ = [
     "get_gat_config",
     "load_encoders",
     "load_gat_generator_from_checkpoint",
-    "load_gat_pipeline",
     "load_legacy_checkpoints",
     "normalize_model_name",
     "save_gat_pipeline_pretrained",
@@ -35,39 +34,28 @@ def __getattr__(name: str):
         from .pipelines.gat.gat import GATPipeline
 
         return GATPipeline
-    if name in {"GATGenerator", "GAT_models", "GATDiscriminator", "GATD_models"}:
-        from .models.gat.gat import (
-            GATDiscriminator,
-            GATD_models,
-            GATGenerator,
-            GAT_models,
-        )
+    if name == "save_gat_pipeline_pretrained":
+        from .pipelines.gat.gat import save_gat_pipeline_pretrained
 
-        mapping = {
-            "GATGenerator": GATGenerator,
-            "GAT_models": GAT_models,
-            "GATDiscriminator": GATDiscriminator,
-            "GATD_models": GATD_models,
-        }
-        return mapping[name]
-    if name in {"RpGANLoss", "RpGANPTLoss"}:
-        from .gat_utils import gat as gat_utils
-
-        return gat_utils.RpGANLoss if name == "RpGANLoss" else gat_utils.RpGANPTLoss
+        return save_gat_pipeline_pretrained
     if name in {
+        "GATGenerator",
+        "GAT_models",
+        "GATDiscriminator",
+        "GATD_models",
         "GAT_MODEL_PRESETS",
+        "RpGANLoss",
+        "RpGANPTLoss",
         "apply_checkpoint_args",
         "convert_gat_checkpoint",
         "get_checkpoint_state",
         "get_gat_config",
         "load_encoders",
         "load_gat_generator_from_checkpoint",
-        "load_gat_pipeline",
         "load_legacy_checkpoints",
         "normalize_model_name",
-        "save_gat_pipeline_pretrained",
     }:
-        from .gat_utils import gat as gat_utils
+        from .models.gat import gat as gat_module
 
-        return getattr(gat_utils, name)
+        return getattr(gat_module, name)
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
