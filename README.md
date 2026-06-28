@@ -26,13 +26,30 @@ Model implementations live under [`src/diffusers`](src/diffusers) and extend the
 - **GATPipeline**: one-step class-conditional latent sampling with VAE decode
 
 ```python
-from diffusers import GATPipeline, load_gat_pipeline
+from diffusers import GATPipeline
 
-pipe = load_gat_pipeline("/path/to/checkpoints/latest.pt", resolution=256).to("cuda")
+# From a converted Diffusers folder
+pipe = GATPipeline.from_pretrained("./gat-xl2-diffusers").to("cuda")
 image = pipe(class_labels=207, truncation_psi=0.3).images[0]
 ```
 
-GAT model classes are under `diffusers.models.gat.*`. Training losses and encoder helpers are under `diffusers.gat_utils.*`.
+Convert a legacy training checkpoint:
+
+```bash
+python scripts/convert_gat_checkpoint.py \
+  --ckpt /path/to/checkpoints/latest.pt \
+  --output-dir ./gat-xl2-diffusers \
+  --model GAT-XL/2 \
+  --resolution 256
+```
+
+GAT modules live under `src/diffusers/` with one file per leaf package:
+
+| Path | Contents |
+| --- | --- |
+| `models/gat/gat.py` | Generator, discriminator, layers |
+| `pipelines/gat/gat.py` | `GATPipeline` with `from_pretrained` |
+| `gat_utils/gat.py` | Config, conversion, loading, losses |
 
 ## Installation
 

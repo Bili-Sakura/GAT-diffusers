@@ -74,3 +74,19 @@ def get_hf_attr(dotted_path: str):
     finally:
         sys.path = original_path
         _restore_modules(stashed)
+
+
+def get_config_mixin():
+    return get_hf_attr("diffusers.configuration_utils.ConfigMixin")
+
+
+def get_register_to_config():
+    return get_hf_attr("diffusers.configuration_utils.register_to_config")
+
+
+def get_model_mixin():
+    return get_hf_attr("diffusers.models.modeling_utils.ModelMixin")
+
+
+def get_base_output():
+    return get_hf_attr("diffusers.utils.BaseOutput")

@@ -23,11 +23,8 @@ from accelerate.logging import get_logger
 from accelerate.utils import ProjectConfiguration, set_seed
 from accelerate.utils import DistributedDataParallelKwargs
 
-from diffusers.models.gat.generator import GAT_models
-from diffusers.models.gat.discriminator import GATD_models
-from diffusers.gat_utils.losses import RpGANLoss, RpGANPTLoss
-from diffusers.gat_utils.encoders import load_encoders
-from diffusers.gat_utils.config import normalize_model_name
+from diffusers import GAT_models, GATD_models, RpGANLoss, RpGANPTLoss, normalize_model_name
+from diffusers.gat_utils.gat import load_encoders
 from diffusers._hf import get_hf_attr
 
 AutoencoderKL = get_hf_attr("diffusers.models.autoencoder_kl.AutoencoderKL")

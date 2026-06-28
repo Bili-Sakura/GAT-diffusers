@@ -8,9 +8,8 @@ import pytest
 
 torch = pytest.importorskip("torch")
 
-from diffusers.models.gat.discriminator import GATDiscriminator
-from diffusers.models.gat.generator import GATGenerator
-from diffusers.pipelines.gat.pipeline_gat import GATPipeline
+from diffusers import GATDiscriminator, GATGenerator, GATPipeline
+from diffusers.gat_utils.gat import convert_gat_checkpoint, save_gat_pipeline_pretrained
 
 
 def test_gat_generator_forward_shape():
@@ -81,3 +80,25 @@ def test_gat_pipeline_instantiation():
 
     pipe = GATPipeline(generator=generator, vae=DummyVAE())
     assert pipe.generator is generator
+
+
+def test_save_and_load_diffusers_pipeline(tmp_path):
+    generator = GATGenerator(
+        input_size=8,
+        patch_size=2,
+        in_channels=4,
+        latent_size=16,
+        hidden_size=32,
+        depth=4,
+        num_heads=4,
+        num_classes=10,
+        z_dims=[16],
+        fused_attn=False,
+        qk_norm=False,
+    )
+    out = save_gat_pipeline_pretrained(tmp_path / "gat-test", generator, truncation_psi=0.2)
+    assert (out / "model_index.json").exists()
+    assert (out / "generator" / "config.json").exists()
+    loaded = GATGenerator.from_pretrained(out / "generator")
+    for key, value in generator.state_dict().items():
+        assert torch.allclose(value.cpu(), loaded.state_dict()[key].cpu())

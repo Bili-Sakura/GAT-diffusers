@@ -1,18 +1,82 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 
 import torch
 
 from ..._hf import get_hf_attr
-from ...models.gat.generator import GATGenerator
-from .._labels import (
-    build_label2id,
-    get_label_ids,
-    normalize_class_labels,
-    normalize_id2label,
-    read_id2label_from_model_index,
-)
+from ...models.gat.gat import GATGenerator
+
+
+
+def _normalize_id2label(id2label: Optional[Dict[Union[int, str], str]]) -> Dict[int, str]:
+    if not id2label:
+        return {}
+    return {int(key): value for key, value in id2label.items()}
+
+
+def _read_id2label_from_model_index(variant_path: Optional[str]) -> Dict[int, str]:
+    if not variant_path:
+        return {}
+    model_index_path = Path(variant_path).resolve() / "model_index.json"
+    if not model_index_path.exists():
+        return {}
+    raw = json.loads(model_index_path.read_text(encoding="utf-8"))
+    id2label = raw.get("id2label")
+    if not isinstance(id2label, dict):
+        return {}
+    return {int(key): value for key, value in id2label.items()}
+
+
+def _build_label2id(id2label: Dict[int, str]) -> Dict[str, int]:
+    label2id: Dict[str, int] = {}
+    for class_id, value in id2label.items():
+        for synonym in value.split(","):
+            synonym = synonym.strip()
+            if synonym:
+                label2id[synonym] = int(class_id)
+    return dict(sorted(label2id.items()))
+
+
+def _normalize_class_labels(
+    class_labels: Union[int, str, List[Union[int, str]], torch.LongTensor],
+    *,
+    device: torch.device,
+    label2id: Dict[str, int],
+) -> torch.LongTensor:
+    if torch.is_tensor(class_labels):
+        return class_labels.to(device=device, dtype=torch.long).reshape(-1)
+    if isinstance(class_labels, int):
+        class_label_ids = [class_labels]
+    elif isinstance(class_labels, str):
+        if not label2id:
+            raise ValueError("No English labels loaded. Provide `id2label` in the pipeline config.")
+        if class_labels not in label2id:
+            raise ValueError(f"Unknown English label: {class_labels}")
+        class_label_ids = [label2id[class_labels]]
+    elif class_labels and isinstance(class_labels[0], str):
+        if not label2id:
+            raise ValueError("No English labels loaded. Provide `id2label` in the pipeline config.")
+        missing = [item for item in class_labels if item not in label2id]
+        if missing:
+            raise ValueError(f"Unknown English label(s): {missing}")
+        class_label_ids = [label2id[item] for item in class_labels]
+    else:
+        class_label_ids = list(class_labels)
+    return torch.tensor(class_label_ids, device=device, dtype=torch.long).reshape(-1)
+
+
+def _get_label_ids(label: Union[str, List[str]], label2id: Dict[str, int]) -> List[int]:
+    labels = [label] if isinstance(label, str) else label
+    if not label2id:
+        raise ValueError("No English labels loaded. Provide `id2label` in the pipeline config.")
+    missing = [item for item in labels if item not in label2id]
+    if missing:
+        preview = ", ".join(list(label2id.keys())[:8])
+        raise ValueError(f"Unknown English label(s): {missing}. Example valid labels: {preview}, ...")
+    return [label2id[item] for item in labels]
 
 DiffusionPipeline = get_hf_attr("diffusers.pipelines.pipeline_utils.DiffusionPipeline")
 ImagePipelineOutput = get_hf_attr("diffusers.pipelines.pipeline_utils.ImagePipelineOutput")
@@ -30,6 +94,38 @@ class GATPipeline(DiffusionPipeline):
 
     model_cpu_offload_seq = "generator->vae"
 
+    @classmethod
+    def from_pretrained(cls, pretrained_model_name_or_path, *args, **kwargs):
+        torch_dtype = kwargs.pop("torch_dtype", None)
+        truncation_psi = kwargs.pop("truncation_psi", None)
+        vae_id = kwargs.pop("vae", None)
+        generator_subfolder = kwargs.pop("generator_subfolder", "generator")
+        base_path = Path(pretrained_model_name_or_path)
+
+        if (base_path / "model_index.json").exists():
+            try:
+                pipe = super().from_pretrained(pretrained_model_name_or_path, *args, **kwargs)
+            except Exception:
+                generator_path = base_path / generator_subfolder
+                generator = GATGenerator.from_pretrained(str(generator_path), torch_dtype=torch_dtype, **kwargs)
+                id2label = _read_id2label_from_model_index(str(base_path))
+                index = json.loads((base_path / "model_index.json").read_text(encoding="utf-8"))
+                vae_id = vae_id or index.get("vae_hub_id", "stabilityai/sd-vae-ft-ema")
+                truncation_psi = truncation_psi if truncation_psi is not None else index.get("truncation_psi", 0.3)
+                AutoencoderKL = get_hf_attr("diffusers.models.autoencoder_kl.AutoencoderKL")
+                vae = AutoencoderKL.from_pretrained(vae_id, torch_dtype=torch_dtype)
+                pipe = cls(generator=generator, vae=vae, truncation_psi=truncation_psi, id2label=id2label)
+        else:
+            raise ValueError(
+                f"{pretrained_model_name_or_path} is not a Diffusers GAT pipeline folder "
+                "(expected model_index.json). Use scripts/convert_gat_checkpoint.py to convert a legacy .pt file."
+            )
+
+        if torch_dtype is not None:
+            pipe = pipe.to(dtype=torch_dtype)
+        return pipe
+
+
     def __init__(
         self,
         generator: GATGenerator,
@@ -42,8 +138,8 @@ class GATPipeline(DiffusionPipeline):
         self.register_to_config(truncation_psi=truncation_psi)
         self.vae_scale_factor = 2 ** (len(self.vae.config.block_out_channels) - 1)
         self.image_processor = VaeImageProcessor(vae_scale_factor=self.vae_scale_factor)
-        self._id2label = normalize_id2label(id2label)
-        self.labels = build_label2id(self._id2label)
+        self._id2label = _normalize_id2label(id2label)
+        self.labels = _build_label2id(self._id2label)
         self._labels_loaded_from_model_index = bool(self._id2label)
 
     @property
@@ -54,15 +150,15 @@ class GATPipeline(DiffusionPipeline):
     def _ensure_labels_loaded(self) -> None:
         if self._labels_loaded_from_model_index:
             return
-        loaded = read_id2label_from_model_index(getattr(self.config, "_name_or_path", None))
+        loaded = _read_id2label_from_model_index(getattr(self.config, "_name_or_path", None))
         if loaded:
             self._id2label = loaded
-            self.labels = build_label2id(self._id2label)
+            self.labels = _build_label2id(self._id2label)
         self._labels_loaded_from_model_index = True
 
-    def get_label_ids(self, label: Union[str, List[str]]) -> List[int]:
+    def _get_label_ids(self, label: Union[str, List[str]]) -> List[int]:
         self._ensure_labels_loaded()
-        return get_label_ids(label, self.labels)
+        return _get_label_ids(label, self.labels)
 
     def _default_image_size(self) -> int:
         return int(self.generator.config.input_size) * self.vae_scale_factor
@@ -130,7 +226,7 @@ class GATPipeline(DiffusionPipeline):
 
         device = getattr(self, "_execution_device", None) or next(self.generator.parameters()).device
         dtype = next(self.generator.parameters()).dtype
-        class_labels_tensor = normalize_class_labels(
+        class_labels_tensor = _normalize_class_labels(
             class_labels,
             device=device,
             label2id=self.labels,

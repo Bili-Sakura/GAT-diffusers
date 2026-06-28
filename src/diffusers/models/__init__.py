@@ -1,4 +1,1 @@
-__all__ = [
-    "GATDiscriminator",
-    "GATGenerator",
-]
+__all__ = ["GATDiscriminator", "GATGenerator"]

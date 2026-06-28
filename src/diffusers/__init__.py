@@ -3,10 +3,6 @@ from pkgutil import extend_path
 
 __path__ = extend_path(__path__, __name__)
 
-import importlib
-
-importlib.import_module(f"{__name__}.pipelines.gat.pipeline_gat")
-
 try:
     __version__ = _package_version("diffusers")
 except Exception:
@@ -19,7 +15,10 @@ __all__ = [
     "GATD_models",
     "GAT_MODEL_PRESETS",
     "GAT_models",
+    "RpGANLoss",
+    "RpGANPTLoss",
     "apply_checkpoint_args",
+    "convert_gat_checkpoint",
     "get_checkpoint_state",
     "get_gat_config",
     "load_encoders",
@@ -27,31 +26,38 @@ __all__ = [
     "load_gat_pipeline",
     "load_legacy_checkpoints",
     "normalize_model_name",
-    "RpGANLoss",
-    "RpGANPTLoss",
+    "save_gat_pipeline_pretrained",
 ]
 
 
 def __getattr__(name: str):
     if name == "GATPipeline":
-        from .pipelines.gat.pipeline_gat import GATPipeline
+        from .pipelines.gat.gat import GATPipeline
 
         return GATPipeline
-    if name in {"GATGenerator", "GAT_models"}:
-        from .models.gat.generator import GATGenerator, GAT_models
+    if name in {"GATGenerator", "GAT_models", "GATDiscriminator", "GATD_models"}:
+        from .models.gat.gat import (
+            GATDiscriminator,
+            GATD_models,
+            GATGenerator,
+            GAT_models,
+        )
 
-        return GATGenerator if name == "GATGenerator" else GAT_models
-    if name in {"GATDiscriminator", "GATD_models"}:
-        from .models.gat.discriminator import GATDiscriminator, GATD_models
-
-        return GATDiscriminator if name == "GATDiscriminator" else GATD_models
+        mapping = {
+            "GATGenerator": GATGenerator,
+            "GAT_models": GAT_models,
+            "GATDiscriminator": GATDiscriminator,
+            "GATD_models": GATD_models,
+        }
+        return mapping[name]
     if name in {"RpGANLoss", "RpGANPTLoss"}:
-        from .gat_utils.losses import RpGANLoss, RpGANPTLoss
+        from .gat_utils import gat as gat_utils
 
-        return RpGANLoss if name == "RpGANLoss" else RpGANPTLoss
+        return gat_utils.RpGANLoss if name == "RpGANLoss" else gat_utils.RpGANPTLoss
     if name in {
         "GAT_MODEL_PRESETS",
         "apply_checkpoint_args",
+        "convert_gat_checkpoint",
         "get_checkpoint_state",
         "get_gat_config",
         "load_encoders",
@@ -59,19 +65,9 @@ def __getattr__(name: str):
         "load_gat_pipeline",
         "load_legacy_checkpoints",
         "normalize_model_name",
+        "save_gat_pipeline_pretrained",
     }:
-        from . import gat_utils
+        from .gat_utils import gat as gat_utils
 
-        mapping = {
-            "GAT_MODEL_PRESETS": gat_utils.GAT_MODEL_PRESETS,
-            "apply_checkpoint_args": gat_utils.apply_checkpoint_args,
-            "get_checkpoint_state": gat_utils.get_checkpoint_state,
-            "get_gat_config": gat_utils.get_gat_config,
-            "load_encoders": gat_utils.load_encoders,
-            "load_gat_generator_from_checkpoint": gat_utils.load_gat_generator_from_checkpoint,
-            "load_gat_pipeline": gat_utils.load_gat_pipeline,
-            "load_legacy_checkpoints": gat_utils.load_legacy_checkpoints,
-            "normalize_model_name": gat_utils.normalize_model_name,
-        }
-        return mapping[name]
+        return getattr(gat_utils, name)
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
