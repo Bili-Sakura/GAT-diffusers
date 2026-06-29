@@ -980,15 +980,43 @@ def get_checkpoint_state(checkpoint, weight_key: str = "ema"):
     raise RuntimeError("Checkpoint does not contain model weights.")
 
 
+def get_checkpoint_training_config(checkpoint) -> dict | None:
+    if not isinstance(checkpoint, dict):
+        return None
+    config = checkpoint.get("config")
+    if isinstance(config, dict):
+        return config
+    args = checkpoint.get("args")
+    if args is None:
+        return None
+    return {
+        name: getattr(args, name)
+        for name in ("model", "resolution", "num_classes", "fused_attn", "qk_norm")
+        if hasattr(args, name)
+    }
+
+
 def apply_checkpoint_args(args, checkpoint):
-    ckpt_args = checkpoint.get("args") if isinstance(checkpoint, dict) else None
-    if ckpt_args is None:
+    ckpt_config = get_checkpoint_training_config(checkpoint)
+    if ckpt_config is None:
         return args
     for name in ("model", "resolution", "num_classes", "fused_attn", "qk_norm"):
-        if hasattr(ckpt_args, name):
-            setattr(args, name, getattr(ckpt_args, name))
+        if name in ckpt_config:
+            setattr(args, name, ckpt_config[name])
     args.model = normalize_model_name(args.model)
     return args
+
+
+def resolve_model_name_from_checkpoint(checkpoint, model_name: Optional[str] = None) -> Optional[str]:
+    if model_name is not None:
+        return normalize_model_name(model_name)
+    ckpt_config = get_checkpoint_training_config(checkpoint)
+    if ckpt_config and ckpt_config.get("model"):
+        return normalize_model_name(ckpt_config["model"])
+    metadata = checkpoint.get("metadata") if isinstance(checkpoint, dict) else None
+    if isinstance(metadata, dict) and metadata.get("architecture"):
+        return normalize_model_name(metadata["architecture"])
+    return None
 
 
 def extract_generator_state_dict(checkpoint_path: str, weight_key: str = "ema", legacy: bool = False, encoder_depth: int = 8):
@@ -1014,25 +1042,35 @@ def convert_gat_checkpoint(
     discriminator_weight_key: str = "discriminator",
     truncation_psi: float = 0.3,
     vae_hub_id: str = "stabilityai/sd-vae-ft-ema",
+    id2label: Optional[dict] = None,
     fused_attn: bool = True,
     qk_norm: bool = True,
 ) -> Path:
     checkpoint, state_dict, _ = extract_generator_state_dict(
         checkpoint_path, weight_key=weight_key, legacy=legacy, encoder_depth=encoder_depth
     )
-    if model_name is None and isinstance(checkpoint, dict) and checkpoint.get("args") is not None:
-        model_name = normalize_model_name(checkpoint["args"].model)
+    model_name = resolve_model_name_from_checkpoint(checkpoint, model_name)
     if model_name is None:
-        raise ValueError("model_name is required when checkpoint does not store training args.")
+        raise ValueError("model_name is required when checkpoint does not store training config.")
+
+    ckpt_config = get_checkpoint_training_config(checkpoint) or {}
+    if resolution == 256 and ckpt_config.get("resolution"):
+        resolution = int(ckpt_config["resolution"])
+    if num_classes == 1000 and ckpt_config.get("num_classes"):
+        num_classes = int(ckpt_config["num_classes"])
+    if "fused_attn" in ckpt_config:
+        fused_attn = bool(ckpt_config["fused_attn"])
+    if "qk_norm" in ckpt_config:
+        qk_norm = bool(ckpt_config["qk_norm"])
 
     config = get_gat_config(model_name, resolution, num_classes=num_classes, z_dims=z_dims)
-    generator = GAT_models[model_name](**config, fused_attn=fused_attn, qk_norm=qk_norm)
+    generator = GATGenerator(**config, fused_attn=fused_attn, qk_norm=qk_norm)
     generator.load_state_dict(state_dict, strict=True)
 
     discriminator = None
     if save_discriminator and isinstance(checkpoint, dict) and discriminator_weight_key in checkpoint:
         disc_state = checkpoint[discriminator_weight_key]
-        discriminator = GATD_models[model_name](**config, fused_attn=fused_attn, qk_norm=qk_norm)
+        discriminator = GATDiscriminator(**config, fused_attn=fused_attn, qk_norm=qk_norm)
         discriminator.load_state_dict(disc_state, strict=True)
 
     from ...pipelines.gat.gat import save_gat_pipeline_pretrained
@@ -1042,6 +1080,7 @@ def convert_gat_checkpoint(
         truncation_psi=truncation_psi,
         vae_hub_id=vae_hub_id,
         discriminator=discriminator,
+        id2label=id2label,
     )
 
 
@@ -1062,13 +1101,12 @@ def load_gat_generator_from_checkpoint(
     checkpoint, state_dict, _ = extract_generator_state_dict(
         checkpoint_path, weight_key=weight_key, legacy=legacy, encoder_depth=encoder_depth
     )
-    if model_name is None and isinstance(checkpoint, dict) and checkpoint.get("args") is not None:
-        model_name = normalize_model_name(checkpoint["args"].model)
+    model_name = resolve_model_name_from_checkpoint(checkpoint, model_name)
     if model_name is None:
-        raise ValueError("model_name is required when checkpoint does not store training args.")
+        raise ValueError("model_name is required when checkpoint does not store training config.")
 
     config = get_gat_config(model_name, resolution, num_classes=num_classes, z_dims=z_dims)
-    generator = GAT_models[model_name](**config, fused_attn=fused_attn, qk_norm=qk_norm)
+    generator = GATGenerator(**config, fused_attn=fused_attn, qk_norm=qk_norm)
     generator.load_state_dict(state_dict, strict=True)
     return generator.to(device)
 
